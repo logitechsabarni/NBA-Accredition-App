@@ -1,0 +1,6 @@
+{
+  "name": "NBA Accreditation & AI Platform",
+  "description": "An enterprise-grade AI-powered platform for engineering accreditation. Seamlessly track CO-PO mappings, calculate attainment scores, audit SAR criteria, conduct gap analysis, and query automated NBA specialist AI agents.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
