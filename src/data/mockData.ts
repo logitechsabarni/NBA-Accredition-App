@@ -97,6 +97,90 @@ export const SAMPLE_COURSES: Course[] = [
       { coId: "CO3", poId: "PO3", value: 3 },
       { coId: "CO4", poId: "PO4", value: 2 }
     ]
+  },
+  {
+    id: "ec301",
+    code: "EC301",
+    name: "Digital Signal Processing",
+    description: "Discrete-time signals and systems, DFT/FFT structures, implementation of FIR and IIR digital filters, and finite word-length execution limitations.",
+    department: "Electronics",
+    semester: "Semester V",
+    academicYear: "2025-2026",
+    cos: [
+      { id: "CO1", text: "Describe mathematical models of continuous and discrete-time signals.", bloomsLevel: "Understand (K2)" },
+      { id: "CO2", text: "Compute Fast Fourier Transforms (FFT) for computationally efficient filtering.", bloomsLevel: "Apply (K3)" },
+      { id: "CO3", text: "Design finite impulse response (FIR) Filters fitting specific frequency bands.", bloomsLevel: "Create (K6)" },
+      { id: "CO4", text: "Analyze quantization noise and error-bound coefficients in digital filter systems.", bloomsLevel: "Analyze (K4)" }
+    ],
+    mappings: [
+      { coId: "CO1", poId: "PO1", value: 3 },
+      { coId: "CO2", poId: "PO2", value: 2 },
+      { coId: "CO3", poId: "PO3", value: 3 },
+      { coId: "CO4", poId: "PO4", value: 2 }
+    ]
+  },
+  {
+    id: "ec302",
+    code: "EC302",
+    name: "Microprocessors & Microcontrollers",
+    description: "Hardware microarchitecture of 8086/8051 families, instruction memory maps, assembly language development, and interrupt-driven peripheral interfacing.",
+    department: "Electronics",
+    semester: "Semester VI",
+    academicYear: "2025-2026",
+    cos: [
+      { id: "CO1", text: "Illustrate microarchitecture components of 16-bit processor buses.", bloomsLevel: "Understand (K2)" },
+      { id: "CO2", text: "Develop modular assembly programs to perform hardware multiplication.", bloomsLevel: "Apply (K3)" },
+      { id: "CO3", text: "Design real-time interrupt handlers for ADC converter chips.", bloomsLevel: "Create (K6)" },
+      { id: "CO4", text: "Formulate peripheral device communication lines (SPI/I2C controls).", bloomsLevel: "Analyze (K4)" }
+    ],
+    mappings: [
+      { coId: "CO1", poId: "PO1", value: 2 },
+      { coId: "CO2", poId: "PO3", value: 2 },
+      { coId: "CO3", poId: "PO3", value: 3 },
+      { coId: "CO4", poId: "PO5", value: 3 }
+    ]
+  },
+  {
+    id: "it301",
+    code: "IT301",
+    name: "Web Programming & Cloud Technologies",
+    description: "Modern JavaScript frameworks, microservice API design, HTTP protocols, virtual container deployment, and serverless computing workflows.",
+    department: "Information Tech",
+    semester: "Semester V",
+    academicYear: "2025-2026",
+    cos: [
+      { id: "CO1", text: "Explain core virtual system types and scalable cloud paradigms.", bloomsLevel: "Understand (K2)" },
+      { id: "CO2", text: "Construct reactive multi-view client-side user interfaces.", bloomsLevel: "Apply (K3)" },
+      { id: "CO3", text: "Build secure RESTful backends integrated with database storage drivers.", bloomsLevel: "Create (K6)" },
+      { id: "CO4", text: "Deploy clustered server images with automatic horizontal load balancing.", bloomsLevel: "Apply (K3)" }
+    ],
+    mappings: [
+      { coId: "CO1", poId: "PO1", value: 2 },
+      { coId: "CO2", poId: "PO3", value: 3 },
+      { coId: "CO3", poId: "PO3", value: 3 },
+      { coId: "CO4", poId: "PO5", value: 3 }
+    ]
+  },
+  {
+    id: "it302",
+    code: "IT302",
+    name: "Cryptography & Network Security",
+    description: "Classical stream ciphers, public-private key infrastructure (RSA, Elliptic Curves), cryptographic secure hashes, and authentication handshakes.",
+    department: "Information Tech",
+    semester: "Semester VI",
+    academicYear: "2025-2026",
+    cos: [
+      { id: "CO1", text: "Explain mathematical number theory fundamentals backing modular cryptography.", bloomsLevel: "Understand (K2)" },
+      { id: "CO2", text: "Implement asymmetric key exchanges safeguarding message channels.", bloomsLevel: "Apply (K3)" },
+      { id: "CO3", text: "Evaluate cipher security strength against passive eavesdropping.", bloomsLevel: "Evaluate (K5)" },
+      { id: "CO4", text: "Incorporate SSL certificate chains into client-server handshakes.", bloomsLevel: "Create (K6)" }
+    ],
+    mappings: [
+      { coId: "CO1", poId: "PO1", value: 3 },
+      { coId: "CO2", poId: "PO3", value: 2 },
+      { coId: "CO3", poId: "PO2", value: 2 },
+      { coId: "CO4", poId: "PO8", value: 2 }
+    ]
   }
 ];
 

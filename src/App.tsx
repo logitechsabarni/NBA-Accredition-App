@@ -40,19 +40,69 @@ export default function App() {
   // Current active tab
   const [currentTab, setCurrentTab] = useState<string>("dashboard");
   
+  // User/system state
+  const [selectedDept, setSelectedDept] = useState<string>("Computer Science");
+  const [userRole, setUserRole] = useState<string>("Accreditation Coordinator");
+
   // App-level state backing calculations
   const [courses, setCourses] = useState<Course[]>(SAMPLE_COURSES);
   const [selectedCourseId, setSelectedCourseId] = useState<string>("cs302"); // default DBMS
   const [assessmentMethods, setAssessmentMethods] = useState<AssessmentMethod[]>(INITIAL_ASSESSMENT_METHODS);
-  const [criteria, setCriteria] = useState<SARCriterion[]>(INITIAL_CRITERIA_LIST);
+  
+  const [criteriaMap, setCriteriaMap] = useState<{ [dept: string]: SARCriterion[] }>({
+    "Computer Science": INITIAL_CRITERIA_LIST,
+    "Electronics": INITIAL_CRITERIA_LIST.map(c => {
+      let status = c.status;
+      let allottedPoints = c.allottedPoints;
+      if (c.id === "C1") { status = "in_progress"; allottedPoints = 88; }
+      else if (c.id === "C2") { status = "in_progress"; allottedPoints = 55; }
+      else if (c.id === "C3") { status = "completed"; allottedPoints = 92; }
+      else if (c.id === "C4") { status = "under_review"; allottedPoints = 98; }
+      else if (c.id === "C5") { status = "completed"; allottedPoints = 140; }
+      else if (c.id === "C6") { status = "under_review"; allottedPoints = 55; }
+      else if (c.id === "C7") { status = "in_progress"; allottedPoints = 30; }
+      else if (c.id === "C8") { status = "in_progress"; allottedPoints = 32; }
+      else if (c.id === "C9") { allottedPoints = 44; }
+      else if (c.id === "C10") { status = "completed"; allottedPoints = 90; }
+      return { ...c, status, allottedPoints };
+    }),
+    "Information Tech": INITIAL_CRITERIA_LIST.map(c => {
+      let status = c.status;
+      let allottedPoints = c.allottedPoints;
+      if (c.id === "C1") { status = "completed"; allottedPoints = 98; }
+      else if (c.id === "C2") { status = "completed"; allottedPoints = 85; }
+      else if (c.id === "C3") { status = "in_progress"; allottedPoints = 82; }
+      else if (c.id === "C4") { status = "completed"; allottedPoints = 125; }
+      else if (c.id === "C5") { status = "completed"; allottedPoints = 152; }
+      else if (c.id === "C6") { status = "completed"; allottedPoints = 65; }
+      else if (c.id === "C7") { status = "completed"; allottedPoints = 42; }
+      else if (c.id === "C8") { status = "completed"; allottedPoints = 40; }
+      else if (c.id === "C9") { status = "completed"; allottedPoints = 43; }
+      else if (c.id === "C10") { status = "in_progress"; allottedPoints = 95; }
+      return { ...c, status, allottedPoints };
+    })
+  });
+
+  const criteria = criteriaMap[selectedDept] || criteriaMap["Computer Science"] || INITIAL_CRITERIA_LIST;
+
+  const setCriteria = (updateFn: SARCriterion[] | ((prev: SARCriterion[]) => SARCriterion[])) => {
+    setCriteriaMap(prevMap => {
+      const currentList = prevMap[selectedDept] || prevMap["Computer Science"] || INITIAL_CRITERIA_LIST;
+      const nextList = typeof updateFn === "function" ? updateFn(currentList) : updateFn;
+      return {
+        ...prevMap,
+        [selectedDept]: nextList
+      };
+    });
+  };
+
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>(INITIAL_AUDIT_LOGS);
   
-  // User/system state
-  const [selectedDept, setSelectedDept] = useState<string>("Computer Science");
-  const [userRole, setUserRole] = useState<string>("Accreditation Coordinator");
+  // Filter courses by department selected in navigation bar
+  const filteredCourses = courses.filter(c => c.department === selectedDept);
   
-  // Active course reference
-  const currentCourse = courses.find(c => c.id === selectedCourseId) || courses[0];
+  // Active course reference (prefer matching selectedCourseId, fallback to first in filtered list)
+  const currentCourse = filteredCourses.find(c => c.id === selectedCourseId) || filteredCourses[0] || courses[0];
 
   // Global thresholds configured in "Settings"
   const [targetWeightDirect, setTargetWeightDirect] = useState<number>(80); // Direct weight vs Indirect weight
@@ -99,6 +149,34 @@ export default function App() {
       "endsem": { "CO1": 58, "CO2": 69, "CO3": 65, "CO4": 50 },
       "assignments": { "CO1": 85, "CO2": 90, "CO3": 88, "CO4": 75 },
       "exitsurvey": { "CO1": 80, "CO2": 85, "CO3": 84, "CO4": 72 }
+    },
+    "ec301": {
+      "test1": { "CO1": 72, "CO2": 66, "CO3": 32, "CO4": 64 },
+      "test2": { "CO1": 78, "CO2": 72, "CO3": 38, "CO4": 60 },
+      "endsem": { "CO1": 65, "CO2": 60, "CO3": 28, "CO4": 56 },
+      "assignments": { "CO1": 88, "CO2": 82, "CO3": 45, "CO4": 76 },
+      "exitsurvey": { "CO1": 82, "CO2": 78, "CO3": 48, "CO4": 78 }
+    },
+    "ec302": {
+      "test1": { "CO1": 68, "CO2": 72, "CO3": 50, "CO4": 65 },
+      "test2": { "CO1": 74, "CO2": 76, "CO3": 55, "CO4": 68 },
+      "endsem": { "CO1": 60, "CO2": 64, "CO3": 48, "CO4": 58 },
+      "assignments": { "CO1": 85, "CO2": 88, "CO3": 75, "CO4": 82 },
+      "exitsurvey": { "CO1": 80, "CO2": 82, "CO3": 72, "CO4": 80 }
+    },
+    "it301": {
+      "test1": { "CO1": 82, "CO2": 74, "CO3": 25, "CO4": 30 },
+      "test2": { "CO1": 80, "CO2": 78, "CO3": 28, "CO4": 34 },
+      "endsem": { "CO1": 72, "CO2": 68, "CO3": 24, "CO4": 31 },
+      "assignments": { "CO1": 90, "CO2": 85, "CO3": 32, "CO4": 35 },
+      "exitsurvey": { "CO1": 86, "CO2": 80, "CO3": 40, "CO4": 42 }
+    },
+    "it302": {
+      "test1": { "CO1": 66, "CO2": 70, "CO3": 62, "CO4": 54 },
+      "test2": { "CO1": 70, "CO2": 75, "CO3": 64, "CO4": 58 },
+      "endsem": { "CO1": 58, "CO2": 65, "CO3": 58, "CO4": 50 },
+      "assignments": { "CO1": 82, "CO2": 86, "CO3": 80, "CO4": 72 },
+      "exitsurvey": { "CO1": 78, "CO2": 82, "CO3": 78, "CO4": 74 }
     }
   });
 
@@ -249,6 +327,83 @@ export default function App() {
 
   // Gap outcomes filtered
   const gapCOs = activeCourseAttainments.filter(a => !a.isMet);
+
+  // Sync selectedCourseId when department changes so that it selects first available course of that department
+  useEffect(() => {
+    const deptCourses = courses.filter(c => c.department === selectedDept);
+    if (deptCourses.length > 0) {
+      const isCurrentInDept = deptCourses.some(c => c.id === selectedCourseId);
+      if (!isCurrentInDept) {
+        setSelectedCourseId(deptCourses[0].id);
+      }
+    }
+  }, [selectedDept, courses]);
+
+  // Dynamically update SARCriterion points in active state whenever courses or studentPerformanceScores change
+  useEffect(() => {
+    const deptCourses = courses.filter(c => c.department === selectedDept);
+
+    // 1. Calculate CO-PO mapping coverage across all courses in department
+    let totalPossiblePairs = 0;
+    let totalMappedPairs = 0;
+    deptCourses.forEach(c => {
+      totalPossiblePairs += c.cos.length * 12;
+      totalMappedPairs += c.mappings.filter(m => m.value > 0).length;
+    });
+    const mappingRatio = totalPossiblePairs > 0 ? (totalMappedPairs / totalPossiblePairs) : 0;
+    const dynamicC2Points = Math.round(50 + (mappingRatio * 50));
+
+    // 2. Calculate Continuous Improvement progress (C7) based on target attainment met ratio across all courses
+    let totalOutcomes = 0;
+    let metOutcomes = 0;
+    deptCourses.forEach(c => {
+      const attainments = getCOAttainmentCalculations(c.id);
+      totalOutcomes += attainments.length;
+      metOutcomes += attainments.filter(a => a.isMet).length;
+    });
+    const metRatio = totalOutcomes > 0 ? (metOutcomes / totalOutcomes) : 0;
+    const dynamicC7Points = Math.round(20 + (metRatio * 30));
+
+    // 3. Calculate Students' Performance (C4) based on average attainment accomplishment across all outcome targets
+    let totalOverallAttainmentSum = 0;
+    let totalOutcomesCount = 0;
+    deptCourses.forEach(c => {
+      const attainments = getCOAttainmentCalculations(c.id);
+      attainments.forEach(a => {
+        totalOverallAttainmentSum += a.overallAttainmentPercentage;
+        totalOutcomesCount++;
+      });
+    });
+    const avgOverallAttainment = totalOutcomesCount > 0 ? (totalOverallAttainmentSum / totalOutcomesCount) : 0;
+    const dynamicC4Points = Math.round(70 + ((avgOverallAttainment / 100) * 80));
+
+    // Update criteria state only if they differ to avoid loops
+    setCriteria(prev => {
+      let changed = false;
+      const next = prev.map(c => {
+        let allotted = c.allottedPoints;
+        if (c.id === "C2") allotted = dynamicC2Points;
+        else if (c.id === "C7") allotted = dynamicC7Points;
+        else if (c.id === "C4") allotted = dynamicC4Points;
+        else if (c.id === "C1") {
+          allotted = selectedDept === "Computer Science" ? 95 : selectedDept === "Electronics" ? 91 : 96;
+        } else if (c.id === "C3") {
+          allotted = selectedDept === "Computer Science" ? 85 : selectedDept === "Electronics" ? 88 : 84;
+        } else if (c.id === "C5") {
+          allotted = selectedDept === "Computer Science" ? 148 : selectedDept === "Electronics" ? 142 : 145;
+        } else if (c.id === "C6") {
+          allotted = selectedDept === "Computer Science" ? 62 : selectedDept === "Electronics" ? 64 : 60;
+        }
+
+        if (allotted !== c.allottedPoints) {
+          changed = true;
+          return { ...c, allottedPoints: allotted };
+        }
+        return c;
+      });
+      return changed ? next : prev;
+    });
+  }, [courses, selectedDept, studentPerformanceScores, targetWeightDirect, coTargetAttainmentPercentage]);
 
   // Trigger Action Logging helper
   const addAuditLog = (action: string, module: string) => {
@@ -638,7 +793,39 @@ Give clear, straightforward advice.
   const handleReloadDefaultMock = () => {
     setCourses(SAMPLE_COURSES);
     setAssessmentMethods(INITIAL_ASSESSMENT_METHODS);
-    setCriteria(INITIAL_CRITERIA_LIST);
+    setCriteriaMap({
+      "Computer Science": INITIAL_CRITERIA_LIST,
+      "Electronics": INITIAL_CRITERIA_LIST.map(c => {
+        let status = c.status;
+        let allottedPoints = c.allottedPoints;
+        if (c.id === "C1") { status = "in_progress"; allottedPoints = 88; }
+        else if (c.id === "C2") { status = "in_progress"; allottedPoints = 55; }
+        else if (c.id === "C3") { status = "completed"; allottedPoints = 92; }
+        else if (c.id === "C4") { status = "under_review"; allottedPoints = 98; }
+        else if (c.id === "C5") { status = "completed"; allottedPoints = 140; }
+        else if (c.id === "C6") { status = "under_review"; allottedPoints = 55; }
+        else if (c.id === "C7") { status = "in_progress"; allottedPoints = 30; }
+        else if (c.id === "C8") { status = "in_progress"; allottedPoints = 32; }
+        else if (c.id === "C9") { allottedPoints = 44; }
+        else if (c.id === "C10") { status = "completed"; allottedPoints = 90; }
+        return { ...c, status, allottedPoints };
+      }),
+      "Information Tech": INITIAL_CRITERIA_LIST.map(c => {
+        let status = c.status;
+        let allottedPoints = c.allottedPoints;
+        if (c.id === "C1") { status = "completed"; allottedPoints = 98; }
+        else if (c.id === "C2") { status = "completed"; allottedPoints = 85; }
+        else if (c.id === "C3") { status = "in_progress"; allottedPoints = 82; }
+        else if (c.id === "C4") { status = "completed"; allottedPoints = 125; }
+        else if (c.id === "C5") { status = "completed"; allottedPoints = 152; }
+        else if (c.id === "C6") { status = "completed"; allottedPoints = 65; }
+        else if (c.id === "C7") { status = "completed"; allottedPoints = 42; }
+        else if (c.id === "C8") { status = "completed"; allottedPoints = 40; }
+        else if (c.id === "C9") { status = "completed"; allottedPoints = 43; }
+        else if (c.id === "C10") { status = "in_progress"; allottedPoints = 95; }
+        return { ...c, status, allottedPoints };
+      })
+    });
     setAuditLogs(INITIAL_AUDIT_LOGS);
     setMessages([
       {
@@ -703,7 +890,7 @@ Give clear, straightforward advice.
                   onChange={(e) => setSelectedCourseId(e.target.value)}
                   className="text-xs font-bold text-indigo-700 bg-indigo-50/50 hover:bg-indigo-50 border border-indigo-100 outline-none rounded-lg px-3 py-2 cursor-pointer transition-all"
                 >
-                  {courses.map(c => (
+                  {filteredCourses.map(c => (
                     <option key={c.id} value={c.id}>{c.code} - {c.name}</option>
                   ))}
                 </select>
