@@ -7,7 +7,11 @@ interface NavbarProps {
   setSelectedDept: (dept: string) => void;
   userRole: string;
   setUserRole: (role: string) => void;
+  currentUserEmail: string;
+  setCurrentUserEmail: (email: string) => void;
   onRefresh: () => void;
+  forceStandby: boolean;
+  setForceStandby: (val: boolean) => void;
 }
 
 export default function Navbar({
@@ -16,7 +20,11 @@ export default function Navbar({
   setSelectedDept,
   userRole,
   setUserRole,
-  onRefresh
+  currentUserEmail,
+  setCurrentUserEmail,
+  onRefresh,
+  forceStandby,
+  setForceStandby
 }: NavbarProps) {
   const getTabTitle = () => {
     switch (currentTab) {
@@ -109,14 +117,48 @@ export default function Navbar({
           </button>
         </div>
 
+        {/* API Engine Selector */}
+        <div id="api-engine-selector" className="flex items-center gap-1.5 border-l border-gray-200 pl-4">
+          <button
+            onClick={() => setForceStandby(!forceStandby)}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all cursor-pointer ${
+              forceStandby 
+                ? "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100/80" 
+                : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100/80"
+            }`}
+            title={forceStandby ? "Click to connect Live Gemini API" : "Click to use Offline Stand-by Simulator"}
+          >
+            <span className={`w-1.5 h-1.5 rounded-full ${forceStandby ? "bg-amber-500 animate-pulse" : "bg-emerald-500 animate-pulse"}`}></span>
+            {forceStandby ? "Standby Mock" : "Live Gemini AI"}
+          </button>
+        </div>
+
         {/* Active Profile ID */}
         <div className="flex items-center gap-2.5 border-l border-gray-200 pl-4">
-          <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-700 border border-slate-200 flex items-center justify-center font-bold text-xs">
-            JD
+          <div className="flex flex-col text-right">
+            <span className="text-[10px] text-gray-400 font-bold tracking-wider">TESTER PROFILE</span>
+            <select
+              value={currentUserEmail}
+              onChange={(e) => {
+                setCurrentUserEmail(e.target.value);
+                // Sync user role based on email selection for a flawless simulation
+                if (e.target.value === "sabarni.guha15@gmail.com") {
+                  setUserRole("Accreditation Coordinator");
+                } else if (e.target.value === "guest.reviewer@nba-india.org") {
+                  setUserRole("SaaS Administrator");
+                } else {
+                  setUserRole("Course Instructor (Faculty)");
+                }
+              }}
+              className="text-xs font-mono font-bold text-indigo-600 bg-indigo-50/50 hover:bg-indigo-50 border border-indigo-100 rounded px-1.5 py-0.5 outline-none cursor-pointer"
+            >
+              <option value="sabarni.guha15@gmail.com">sabarni.guha15@gmail.com [LIVE API]</option>
+              <option value="guest.reviewer@nba-india.org">guest.reviewer@nba-india.org [MOCK ENGINE]</option>
+              <option value="faculty.member@university.edu">faculty.member@university.edu [MOCK ENGINE]</option>
+            </select>
           </div>
-          <div className="flex flex-col text-left">
-            <span className="text-xs font-bold text-gray-800">Prof. John Doe</span>
-            <span className="text-[10px] text-gray-500 font-mono uppercase">{userRole.split(" ")[0]}</span>
+          <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-xs uppercase shadow-xs">
+            {currentUserEmail === "sabarni.guha15@gmail.com" ? "SG" : currentUserEmail.substring(0, 2).toUpperCase()}
           </div>
         </div>
       </div>

@@ -43,6 +43,9 @@ export default function App() {
   // User/system state
   const [selectedDept, setSelectedDept] = useState<string>("Computer Science");
   const [userRole, setUserRole] = useState<string>("Accreditation Coordinator");
+  const [currentUserEmail, setCurrentUserEmail] = useState<string>("sabarni.guha15@gmail.com");
+  const [forceStandby, setForceStandby] = useState<boolean>(false);
+  const [quotaWarning, setQuotaWarning] = useState<string>("");
 
   // App-level state backing calculations
   const [courses, setCourses] = useState<Course[]>(SAMPLE_COURSES);
@@ -217,6 +220,23 @@ export default function App() {
   const [activeSpecialist, setActiveSpecialist] = useState("orchestrator");
   const [isAiResponding, setIsAiResponding] = useState(false);
   const chatBottomRef = useRef<HTMLDivElement>(null);
+
+  // Check backend server quota limit and health status on load
+  useEffect(() => {
+    const checkServerHealth = async () => {
+      try {
+        const res = await fetch("/api/health");
+        const data = await res.json();
+        if (data.serverQuotaExceeded) {
+          setForceStandby(true);
+          setQuotaWarning("Gemini API Quota Exceeded (429): Free-tier daily limits hit. Seamlessly toggled Stand-by Mock Engine.");
+        }
+      } catch (err) {
+        console.warn("Failed to contact server health check endpoint:", err);
+      }
+    };
+    checkServerHealth();
+  }, []);
 
   // Initialize SAR editor text when active criterion shifts
   useEffect(() => {
@@ -428,10 +448,16 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           courseName: currentCourse.name,
-          courseDescription: currentCourse.description 
+          courseDescription: currentCourse.description,
+          userEmail: currentUserEmail,
+          forceStandby: forceStandby
         })
       });
       const data = await response.json();
+      if (data.quotaExceeded) {
+        setForceStandby(true);
+        setQuotaWarning("Gemini API Quota Exceeded (429): Free-tier daily limits hit. Seamlessly toggled Stand-by Mock Engine.");
+      }
       if (data.success && Array.isArray(data.cos) && data.cos.length > 0) {
         // Successfully got custom generated COs. Replace or update!
         const updatedCourses = courses.map(c => {
@@ -441,13 +467,13 @@ export default function App() {
           return c;
         });
         setCourses(updatedCourses);
-        addAuditLog(`Successfully generated and integrated ${data.cos.length} professional Course Outcomes (CO1-CO6)`, "CO-PO Matrix");
+        addAuditLog(`Successfully generated and integrated ${data.cos.length} professional Course Outcomes (CO1-CO6) ${data.isFallback ? '[Standby Simulator]' : '[Live AI]'}`, "CO-PO Matrix");
       } else {
         alert("Server returned error generating course description. Fallback data retained.");
       }
     } catch (e: any) {
       console.error(e);
-      alert("Failed communicating with AI server. Please make sure GEMINI_API_KEY is available: " + e.message);
+      alert("Failed communicating with AI server: " + e.message);
     } finally {
       setIsGeneratingCOs(false);
     }
@@ -467,10 +493,16 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           courseName: currentCourse.name,
-          cos: currentCourse.cos
+          cos: currentCourse.cos,
+          userEmail: currentUserEmail,
+          forceStandby: forceStandby
         })
       });
       const data = await response.json();
+      if (data.quotaExceeded) {
+        setForceStandby(true);
+        setQuotaWarning("Gemini API Quota Exceeded (429): Free-tier daily limits hit. Seamlessly toggled Stand-by Mock Engine.");
+      }
       if (data.success && Array.isArray(data.mappings)) {
         // Update mappings state in the selected course
         const updatedCourses = courses.map(c => {
@@ -480,7 +512,7 @@ export default function App() {
           return c;
         });
         setCourses(updatedCourses);
-        addAuditLog(`Applied dynamic AI validation suggestion: ${data.mappings.length} correlation rules calculated.`, "CO-PO Matrix");
+        addAuditLog(`Applied dynamic AI validation suggestion: ${data.mappings.length} correlation rules calculated. ${data.isFallback ? '[Standby Simulator]' : '[Live AI]'}`, "CO-PO Matrix");
       } else {
         alert("Failed to receive suggested mappings array from active AI client.");
       }
@@ -516,10 +548,16 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           courseName: currentCourse.name,
-          coGaps: requestGaps
+          coGaps: requestGaps,
+          userEmail: currentUserEmail,
+          forceStandby: forceStandby
         })
       });
       const data = await response.json();
+      if (data.quotaExceeded) {
+        setForceStandby(true);
+        setQuotaWarning("Gemini API Quota Exceeded (429): Free-tier daily limits hit. Seamlessly toggled Stand-by Mock Engine.");
+      }
       if (data.success && data.actionPlan) {
         setCiGeneratedMemo(data.actionPlan);
         // Automatically save to Criterion 7
@@ -587,20 +625,29 @@ export default function App() {
         body: JSON.stringify({
           messages: [...messages, userMsg].map(m => ({ role: m.role, content: m.content })),
           agentType: activeSpecialist,
-          context: contextPack
+          context: contextPack,
+          userEmail: currentUserEmail,
+          forceStandby: forceStandby
         })
       });
 
       const data = await response.json();
+      if (data.quotaExceeded) {
+        setForceStandby(true);
+        setQuotaWarning("Gemini API Quota Exceeded (429): Free-tier daily limits hit. Seamlessly toggled Stand-by Mock Engine.");
+      }
       if (data.success && data.text) {
+        const displayContent = data.isFallback 
+          ? `${data.text}\n\n*(Note: Specialised agent is operating in high-fidelity Stand-by Simulator due to daily API key limits)*`
+          : data.text;
         setMessages(prev => [...prev, {
           id: "r_" + Date.now(),
           role: "assistant",
-          content: data.text,
+          content: displayContent,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           agentType: activeSpecialist
         }]);
-        addAuditLog(`Queried agent: "${activeSpecialist}" model processed compliance instruction`, "AI Agents Hub");
+        addAuditLog(`Queried agent: "${activeSpecialist}" model processed compliance instruction ${data.isFallback ? '[Standby Simulator]' : '[Live AI]'}`, "AI Agents Hub");
       } else {
         setMessages(prev => [...prev, {
           id: "r_" + Date.now(),
@@ -650,13 +697,22 @@ Give clear, straightforward advice.
         body: JSON.stringify({
           messages: [{ role: "user", content: customPrompt }],
           agentType: "validation",
-          context: { activeCriterionId, maxPoints: activeCriterion.maxPoints }
+          context: { activeCriterionId, maxPoints: activeCriterion.maxPoints },
+          userEmail: currentUserEmail,
+          forceStandby: forceStandby
         })
       });
       const data = await response.json();
+      if (data.quotaExceeded) {
+        setForceStandby(true);
+        setQuotaWarning("Gemini API Quota Exceeded (429): Free-tier daily limits hit. Seamlessly toggled Stand-by Mock Engine.");
+      }
       if (data.success && data.text) {
-        setAiAuditorResponse(data.text);
-        addAuditLog(`Validation review compiled for Chapter ${activeCriterionId}`, "SAR Report");
+        const displayResponse = data.isFallback 
+          ? `${data.text}\n\n*(Note: Generated via High-Fidelity Stand-by Mock Advisor due to API quota constraints)*`
+          : data.text;
+        setAiAuditorResponse(displayResponse);
+        addAuditLog(`Validation review compiled for Chapter ${activeCriterionId} ${data.isFallback ? '[Standby Simulator]' : '[Live AI]'}`, "SAR Report");
       } else {
         setAiAuditorResponse("Audit computation failed. Check terminal logs.");
       }
@@ -859,8 +915,41 @@ Give clear, straightforward advice.
           setSelectedDept={setSelectedDept}
           userRole={userRole}
           setUserRole={setUserRole}
+          currentUserEmail={currentUserEmail}
+          setCurrentUserEmail={setCurrentUserEmail}
           onRefresh={handleReloadDefaultMock}
+          forceStandby={forceStandby}
+          setForceStandby={setForceStandby}
         />
+
+        {/* Quota Exhaustion & Standby banner */}
+        {quotaWarning && (
+          <div className="bg-amber-50 border-b border-amber-200 px-6 py-3 flex items-center justify-between gap-4 shrink-0 shadow-xs">
+            <div className="flex items-center gap-2.5 text-amber-800">
+              <span className="text-lg">📢</span>
+              <div className="text-xs">
+                <span className="font-bold">Gemini API Notice: </span>
+                {quotaWarning}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={async () => {
+                  try {
+                    await fetch("/api/clear-quota", { method: "POST" });
+                  } catch (e) {
+                    console.error("Failed to reset backend quota flag:", e);
+                  }
+                  setForceStandby(false);
+                  setQuotaWarning("");
+                }}
+                className="bg-white hover:bg-amber-100 text-amber-800 border border-amber-300 text-[11px] font-bold px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+              >
+                Clear & Retry Live
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Dynamic Content Panel */}
         <main className="flex-1 overflow-y-auto focus:outline-none p-6 space-y-6">

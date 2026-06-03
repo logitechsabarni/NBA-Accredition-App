@@ -39,11 +39,16 @@ PO12: Life-long Learning - Recognize the need for, and have the preparation and 
 `;
 
 let aiClient: GoogleGenAI | null = null;
+let serverQuotaExceeded = false;
 
 function getAIClient(): GoogleGenAI | null {
+  if (serverQuotaExceeded) {
+    console.log("[Setup Notification] Server detected previous API quota exhaustion. Auto-routing to standby simulator.");
+    return null;
+  }
   const key = process.env.GEMINI_API_KEY;
   if (!key) {
-    console.warn("WARNING: GEMINI_API_KEY environment variable is not defined. Using local fallback rules-based intelligence.");
+    console.log("[Setup Notification] GEMINI_API_KEY environment variable is currently not set. Utilizing standby local rules-based intelligence engine.");
     return null;
   }
   if (!aiClient) {
@@ -60,7 +65,7 @@ function getAIClient(): GoogleGenAI | null {
 }
 
 // Robust retry wrapper to handle transient 503 UNAVAILABLE or 429 RATE_LIMIT errors gracefully
-async function generateContentWithRetry(params: any, maxRetries = 3, initialDelayMs = 1000): Promise<any> {
+async function generateContentWithRetry(params: any, maxRetries = 2, initialDelayMs = 500): Promise<any> {
   const ai = getAIClient();
   if (!ai) {
     throw new Error("No active AI client found.");
@@ -68,33 +73,56 @@ async function generateContentWithRetry(params: any, maxRetries = 3, initialDela
   let lastError: any = null;
   let delayMs = initialDelayMs;
 
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      return await ai.models.generateContent(params);
-    } catch (error: any) {
-      lastError = error;
-      
-      const errorStr = String(error?.message || error).toLowerCase();
-      const status = error?.status || error?.code;
-      const isTransient = 
-        status === 503 || 
-        status === 429 || 
-        errorStr.includes("503") || 
-        errorStr.includes("unavailable") || 
-        errorStr.includes("high demand") || 
-        errorStr.includes("busy") ||
-        errorStr.includes("spike") ||
-        errorStr.includes("rate limit");
+  const modelsToTry = [params.model, "gemini-flash-latest"];
 
-      if (isTransient && attempt < maxRetries) {
-        console.warn(`[Gemini API Warning] Transient error encountered (attempt ${attempt}/${maxRetries}): ${error?.message || error}. Retrying in ${delayMs}ms...`);
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
-        delayMs *= 2; // Exponential backoff
-      } else {
-        throw error;
+  for (const modelName of modelsToTry) {
+    if (!modelName) continue;
+    const currentParams = { ...params, model: modelName };
+    delayMs = initialDelayMs; // Reset backoff delay for the next model
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`[Gemini API Client] Requesting ${modelName} (attempt ${attempt}/${maxRetries})...`);
+        return await ai.models.generateContent(currentParams);
+      } catch (error: any) {
+        lastError = error;
+        const errorStr = String(error?.message || error).toLowerCase();
+        const status = error?.status || error?.code;
+        
+        console.log(`[Gemini API Status] Model ${modelName} returned status: ${status || 'N/A'}. Details: ${errorStr}`);
+
+        // Handle hard quota exhaustion immediately to bypass wasteful retries and subsequent failures
+        const isQuota = status === 429 || errorStr.includes("quota") || errorStr.includes("exhausted") || errorStr.includes("limit");
+        if (isQuota) {
+          console.log(`[Gemini API Quota Exceeded] Hard quota limit detected (429). Engaging server-wide standby mode.`);
+          serverQuotaExceeded = true;
+          throw error; // Terminate immediately to fall back instantly
+        }
+        
+        const isTransient = 
+          status === 503 || 
+          status === 429 || 
+          errorStr.includes("503") || 
+          errorStr.includes("unavailable") || 
+          errorStr.includes("high demand") || 
+          errorStr.includes("busy") ||
+          errorStr.includes("spike") ||
+          errorStr.includes("rate limit");
+
+        if (isTransient && attempt < maxRetries) {
+          console.log(`[Gemini API Notification] Model ${modelName} is busy. Retrying in ${delayMs}ms...`);
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+          delayMs *= 1.5; // Backoff
+        } else {
+          // If this is the primary model and it failed, break out of this inner retry loop to try the fallback model immediately!
+          console.log(`[Gemini API Failover] Model ${modelName} failed or is completely unavailable. Switching to alternative...`);
+          break;
+        }
       }
     }
   }
+  console.log(`[Gemini API Client Fallback] All tried models and retry paths failed. Automatically toggling server standby simulator mode to protect user experience.`);
+  serverQuotaExceeded = true;
   throw lastError;
 }
 
@@ -353,21 +381,34 @@ app.use(express.json());
 
 // API: Health endpoint
 app.get("/api/health", (req, res) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() });
+  res.json({ status: "ok", timestamp: new Date().toISOString(), serverQuotaExceeded });
+});
+
+// API: Clear general quota limits tracker
+app.post("/api/clear-quota", (req, res) => {
+  console.log("[Setup Notification] Manual trigger to reset serverQuotaExceeded flag and attempt live API calls again.");
+  serverQuotaExceeded = false;
+  res.json({ success: true, serverQuotaExceeded });
 });
 
 // API: Generate Custom Course Outcomes (COs) using Bloom's Taxonomy
 app.post("/api/generate-cos", async (req, res) => {
   try {
-    const { courseName, courseDescription } = req.body;
+    const { courseName, courseDescription, userEmail } = req.body;
     if (!courseName) {
       return res.status(400).json({ error: "courseName is required" });
+    }
+
+    // Force high-fidelity instant mock response if user is NOT sabarni.guha15@gmail.com or forceStandby is toggled
+    if (userEmail !== "sabarni.guha15@gmail.com" || req.body.forceStandby) {
+      console.log(`[NBA Taxonomy Router] Routing directly to standby rules-based outcome draft engine. (ForceStandby: ${!!req.body.forceStandby})`);
+      return res.json({ success: true, cos: fallbackCOs(courseName), isFallback: true, quotaExceeded: serverQuotaExceeded });
     }
 
     const ai = getAIClient();
     if (!ai) {
       console.warn("No active AI client found, running fallback generator for courseName:", courseName);
-      return res.json({ success: true, cos: fallbackCOs(courseName) });
+      return res.json({ success: true, cos: fallbackCOs(courseName), isFallback: true, quotaExceeded: serverQuotaExceeded });
     }
 
     const prompt = `
@@ -398,30 +439,37 @@ Provide ONLY raw JSON. No markdown wraps, no backticks, no comments.
 
     const text = result.text || "[]";
     const coList = JSON.parse(text.trim());
-    res.json({ success: true, cos: coList });
-  } catch (error: any) {
-    console.warn("Notice: API model generation unavailable, routing to local taxonomy engine. Message:", error?.message || error);
+    res.json({ success: true, cos: coList, quotaExceeded: serverQuotaExceeded });
+  } catch (err: any) {
+    console.log(`[Taxonomy Engine Notification] Model was busy (status: ${err?.status || 'N/A'}). Routed to local rule-based system.`);
     try {
       const fallbackList = fallbackCOs(req.body.courseName || "General course");
-      res.json({ success: true, cos: fallbackList });
+      const isQuota = err?.status === 429 || String(err?.message || err).toLowerCase().includes("quota") || String(err?.message || err).toLowerCase().includes("exhausted") || String(err?.message || err).toLowerCase().includes("limit") || serverQuotaExceeded;
+      res.json({ success: true, cos: fallbackList, isFallback: true, quotaExceeded: isQuota, errorMsg: err.message });
     } catch (fallbackError: any) {
-      res.status(500).json({ error: error.message || "Failed to generate Course Outcomes fallback." });
+      res.status(500).json({ error: err.message || "Failed to generate Course Outcomes fallback." });
     }
   }
 });
 
 // API: Suggest CO-PO Mapping based on CO descriptions and POs
 app.post("/api/suggest-mapping", async (req, res) => {
-  const { courseName, cos } = req.body;
+  const { courseName, cos, userEmail } = req.body;
   try {
     if (!cos || !Array.isArray(cos)) {
       return res.status(400).json({ error: "cos array is required" });
     }
 
+    // Force high-fidelity instant mock response if user is NOT sabarni.guha15@gmail.com or forceStandby is toggled
+    if (userEmail !== "sabarni.guha15@gmail.com" || req.body.forceStandby) {
+      console.log(`[NBA Mapping Router] Routing directly to stand-by rule-based mapping engine. (ForceStandby: ${!!req.body.forceStandby})`);
+      return res.json({ success: true, mappings: fallbackSuggestedMappings(courseName, cos), isFallback: true, quotaExceeded: serverQuotaExceeded });
+    }
+
     const ai = getAIClient();
     if (!ai) {
       console.warn("No active AI client found, using local suggestion mapping engine for course:", courseName);
-      return res.json({ success: true, mappings: fallbackSuggestedMappings(courseName, cos) });
+      return res.json({ success: true, mappings: fallbackSuggestedMappings(courseName, cos), isFallback: true, quotaExceeded: serverQuotaExceeded });
     }
 
     const prompt = `
@@ -457,32 +505,39 @@ Provide mapping objects ONLY for non-zero scores (values 1, 2, or 3) to keep it 
 
     const text = result.text || "[]";
     const suggested = JSON.parse(text.trim());
-    res.json({ success: true, mappings: suggested });
-  } catch (error: any) {
-    console.warn("Notice: API suggest mapping unavailable, using local expert mapping engine. Message:", error?.message || error);
+    res.json({ success: true, mappings: suggested, quotaExceeded: serverQuotaExceeded });
+  } catch (err: any) {
+    console.log(`[Mapping Engine Notification] Service was busy (status: ${err?.status || 'N/A'}). Routed to local rule-based suggestion catalog.`);
     try {
       const fallbackRulesList = fallbackSuggestedMappings(courseName || "General Course", cos || []);
-      res.json({ success: true, mappings: fallbackRulesList });
+      const isQuota = err?.status === 429 || String(err?.message || err).toLowerCase().includes("quota") || String(err?.message || err).toLowerCase().includes("exhausted") || String(err?.message || err).toLowerCase().includes("limit") || serverQuotaExceeded;
+      res.json({ success: true, mappings: fallbackRulesList, isFallback: true, quotaExceeded: isQuota, errorMsg: err.message });
     } catch (fallbackError: any) {
-      res.status(500).json({ error: error.message || "Failed to suggest CO-PO mappings fallback." });
+      res.status(500).json({ error: err.message || "Failed to suggest CO-PO mappings fallback." });
     }
   }
 });
 
 // API: General Multi-Agent Accreditation Helper Chat (Orchestrator, COPO, Attainment, SAR, CI, Analytics, Validation Agents)
 app.post("/api/chat", async (req, res) => {
-  const { messages, agentType, context } = req.body;
+  const { messages, agentType, context, userEmail } = req.body;
   try {
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ error: "messages array is required" });
     }
 
-    const ai = getAIClient();
     const userMsg = messages[messages.length - 1]?.content || "";
 
+    // Force high-fidelity instant mock response if user is NOT sabarni.guha15@gmail.com or forceStandby is toggled
+    if (userEmail !== "sabarni.guha15@gmail.com" || req.body.forceStandby) {
+      console.log(`[NBA Chat Router] Routing directly to smart fallback agent. (ForceStandby: ${!!req.body.forceStandby})`);
+      return res.json({ success: true, text: fallbackChatResponse(agentType, userMsg, context), isFallback: true, quotaExceeded: serverQuotaExceeded });
+    }
+
+    const ai = getAIClient();
     if (!ai) {
       console.warn("No active AI client found, running fallback chat engine for specialist:", agentType);
-      return res.json({ success: true, text: fallbackChatResponse(agentType, userMsg, context) });
+      return res.json({ success: true, text: fallbackChatResponse(agentType, userMsg, context), isFallback: true, quotaExceeded: serverQuotaExceeded });
     }
 
     const systemInstruction = `
@@ -526,31 +581,38 @@ Respond professionally, academic, structured, helpful, and concise. Avoid promot
       }
     });
 
-    res.json({ success: true, text: result.text });
-  } catch (error: any) {
-    console.warn("Notice: API chat endpoint unavailable, running local specialist agent conversation. Message:", error?.message || error);
+    res.json({ success: true, text: result.text, quotaExceeded: serverQuotaExceeded });
+  } catch (err: any) {
+    console.log(`[Chat Hub Notification] Active specialized chat assistant temporarily offline (status: ${err?.status || 'N/A'}). Delegating task to standby offline agent.`);
     try {
       const userMsg = messages[messages.length - 1]?.content || "";
       const reply = fallbackChatResponse(agentType, userMsg, context);
-      res.json({ success: true, text: reply });
+      const isQuota = err?.status === 429 || String(err?.message || err).toLowerCase().includes("quota") || String(err?.message || err).toLowerCase().includes("exhausted") || String(err?.message || err).toLowerCase().includes("limit") || serverQuotaExceeded;
+      res.json({ success: true, text: reply, isFallback: true, quotaExceeded: isQuota, errorMsg: err.message });
     } catch (fallbackError: any) {
-      res.status(500).json({ error: error.message || "Failed running active agent conversation." });
+      res.status(500).json({ error: err.message || "Failed running active agent conversation." });
     }
   }
 });
 
 // API: Generate full Gap Analysis & Continuous Improvement Plans
 app.post("/api/generate-ci-action", async (req, res) => {
-  const { courseName, coGaps } = req.body;
+  const { courseName, coGaps, userEmail } = req.body;
   try {
     if (!coGaps || !Array.isArray(coGaps)) {
       return res.status(400).json({ error: "coGaps array info is required" });
     }
 
+    // Force high-fidelity instant mock response if user is NOT sabarni.guha15@gmail.com or forceStandby is toggled
+    if (userEmail !== "sabarni.guha15@gmail.com" || req.body.forceStandby) {
+      console.log(`[NBA Continuous Improvement Router] Routing directly to stand-by templates planner. (ForceStandby: ${!!req.body.forceStandby})`);
+      return res.json({ success: true, actionPlan: fallbackCIPlan(courseName, coGaps), isFallback: true, quotaExceeded: serverQuotaExceeded });
+    }
+
     const ai = getAIClient();
     if (!ai) {
       console.warn("No active AI client found, utilizing fallback continuous improvement planner for course:", courseName);
-      return res.json({ success: true, actionPlan: fallbackCIPlan(courseName, coGaps) });
+      return res.json({ success: true, actionPlan: fallbackCIPlan(courseName, coGaps), isFallback: true, quotaExceeded: serverQuotaExceeded });
     }
 
     const actualGaps = coGaps.filter((g: any) => g.explanation && g.explanation.toLowerCase().includes("fail"));
@@ -590,13 +652,14 @@ Format your response as a professional academic memorandum containing clear sect
       contents: prompt
     });
 
-    res.json({ success: true, actionPlan: result.text });
-  } catch (error: any) {
-    console.warn("Notice: API CI action planner unavailable, triggering rules-based action planner. Message:", error?.message || error);
+    res.json({ success: true, actionPlan: result.text, quotaExceeded: serverQuotaExceeded });
+  } catch (err: any) {
+    console.log(`[Continuous Improvement Notification] Action planner backend temporarily offline (status: ${err?.status || 'N/A'}). Loaded local offline curriculum template.`);
     try {
-      res.json({ success: true, actionPlan: fallbackCIPlan(courseName || "General Course", coGaps || []) });
+      const isQuota = err?.status === 429 || String(err?.message || err).toLowerCase().includes("quota") || String(err?.message || err).toLowerCase().includes("exhausted") || String(err?.message || err).toLowerCase().includes("limit") || serverQuotaExceeded;
+      res.json({ success: true, actionPlan: fallbackCIPlan(courseName || "General Course", coGaps || []), isFallback: true, quotaExceeded: isQuota, errorMsg: err.message });
     } catch (fallbackError: any) {
-      res.status(500).json({ error: error.message || "Failed to generate continuous improvement action plan." });
+      res.status(500).json({ error: err.message || "Failed to generate continuous improvement action plan." });
     }
   }
 });
